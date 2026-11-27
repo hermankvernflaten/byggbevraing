@@ -151,7 +151,7 @@ function gruppe(o){
     if(c==='gastropoda'||c==='bivalvia')return'Bløtdyr';
     if(c==='arachnida')return'Edderkoppdyr';
     return'Andre dyr';}
-  if(k==='Plantae'){if(p==='bryophyta'||p==='marchantiophyta'||p==='anthocerotophyta')return'Moser';if(p==='tracheophyta')return'Karplanter';return'Alger';}
+  if(k==='Plantae'){if(p==='bryophyta'||p==='marchantiophyta'||p==='anthocerotophyta')return'Moser';if(/chlorophyta|charophyta|rhodophyta/.test(p))return'Alger';return'Karplanter';}
   if(k==='Fungi'){if(['lecanoromycetes','arthoniomycetes','lichinomycetes','candelariomycetes','coniocybomycetes'].includes(c))return'Lav';return'Sopp';}
   return'Andre';
 }
