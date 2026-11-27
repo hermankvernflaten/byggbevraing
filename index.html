@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artskonsekvens – screening</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE work: fagverktøy for planleggere og konsulenter
+   IDEA en konsekvensutredning-tabell (M-1941) koblet til kartet
+   PICTURE kartet med tiltaksområde, influenssone og funn farget etter rødlistekategori
+   COLOUR hvit grunn, mørk granfarget blekk, rødlistens egne farger som arbeidsfarger
+   TYPE Hanken Grotesk
+   LAYOUT kart til venstre, vurderingspanel til høyre; på mobil kart øverst */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#0f1714);--ink:light-dark(#13201b,#e6efea);--mut:light-dark(#5b6b64,#9fb1a8);
+--line:light-dark(#dfe6e2,#26332d);--panel:light-dark(#f4f7f5,#16211c);--acc:light-dark(#17603d,#5fc98f);
+--cr:#c4001a;--en:#e8590c;--vu:#f2a900;--nt:#c9b400;--dd:#8a8f93;--lc:#3a9d5d;--se:#7b2cbf;
+--k4:#8b0016;--k3:#d63a1e;--k2:#f08c00;--k1:#e9c400;--k0:#9aa5a0}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Hanken Grotesk",system-ui,sans-serif}
+a{color:var(--acc)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,520px);grid-template-rows:auto minmax(0,1fr);height:100%}
+header{grid-column:1/-1;display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+header h1{font-size:20px;margin:0;letter-spacing:-.01em}
+header .sub{color:var(--mut);font-size:13px}
+header form{margin-left:auto;display:flex;gap:6px}
+#map{height:100%;min-height:340px}
+.side{overflow:auto;border-left:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card h2{font-size:16px;margin:0 0 8px}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:3px}
+input,select,button{font:inherit;font-size:15px}
+input[type=text],input[type=number],select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+button{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.hint{font-size:13px;color:var(--mut);margin:6px 0 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-top:10px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--mut)}
+.verdict{border-left:6px solid var(--k0)}
+.verdict h2{font-size:20px}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--line);margin:8px 0}
+.bar i{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 10px;color:var(--mut)}
+.tabs button.on{border-color:var(--acc);color:var(--ink);font-weight:600}
+.sp{border-bottom:1px solid var(--line);padding:10px 0}
+.sp .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sp .nm{font-weight:600}
+.sp .sci{font-style:italic;color:var(--mut);font-size:13px}
+.badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.meta{font-size:13px;color:var(--mut);margin-top:2px}
+.eval{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center;margin-top:6px;font-size:13px}
+.eval select{padding:3px 6px;font-size:13px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:3px 8px;border-radius:14px;border:1px solid var(--line);cursor:pointer;user-select:none}
+.chip input{display:none}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+details{font-size:13px;margin-top:6px}
+details ul{margin:4px 0;padding-left:18px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center;font-size:13px}
+.filters select{width:auto}
+.warn{background:light-dark(#fff4e0,#2b2112);border:1px solid light-dark(#f0c97a,#6b5222);border-radius:8px;padding:10px;font-size:13px}
+.err{color:var(--cr);font-size:13px}
+.hier{counter-reset:h;list-style:none;padding:0;margin:0}
+.hier li{padding:8px 0;border-bottom:1px solid var(--line)}
+.hier b{display:block}
+.empty{color:var(--mut);text-align:center;padding:24px 8px}
+.loader{height:3px;background:linear-gradient(90deg,var(--acc) 40%,transparent 40%);background-size:200% 100%;animation:ld 1s linear infinite}
+@keyframes ld{to{background-position:-200% 0}}
+.leaflet-container{font:inherit}
+@media(max-width:860px){.app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 55vh auto;height:auto}.side{border-left:0;overflow:visible}html,body{height:auto}}
+@media print{header form,#map,.btns,.tabs,.filters,.chips,select{display:none!important}.app{display:block}.side{overflow:visible;border:0}details{display:block}details>*{display:block}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div><h1>Artskonsekvens</h1><div class="sub">Tidlig screening av arter og natur i et utbyggingsområde · førsteutkast etter M-1941</div></div>
+  <form id="sok"><input type="text" id="sokq" placeholder="Søk stedsnavn…" aria-label="Søk sted"><button>Søk</button></form>
+</header>
+<div id="map"></div>
+<aside class="side">
+  <section class="card">
+    <h2>1. Tiltaksområde</h2>
+    <p class="hint" id="areaInfo" style="margin-top:0">Tegn et polygon eller rektangel med verktøyene oppe til venstre i kartet, eller last opp GeoJSON.</p>
+    <div class="row" style="margin-top:8px">
+      <div><label for="tiltak">Type tiltak</label>
+        <select id="tiltak">
+          <option value="bolig">Boligfelt / bebyggelse</option><option value="naering">Næring / industri</option>
+          <option value="vei">Vei / jernbane</option><option value="hytte">Hyttefelt</option>
+          <option value="vind">Vindkraft</option><option value="sol">Solkraft på bakken</option>
+          <option value="masse">Masseuttak / deponi</option><option value="kraftlinje">Kraftlinje</option>
+        </select></div>
+      <div><label for="buffer">Influenssone (m)</label><input type="number" id="buffer" value="200" min="0" max="5000" step="50"></div>
+      <div><label for="fraAar">Funn fra år</label><input type="number" id="fraAar" value="1990" min="1800" max="2026"></div>
+    </div>
+    <div class="btns">
+      <button class="pri" id="hent" disabled>Hent arter og natur</button>
+      <label class="chip" style="margin:0;padding:8px 12px;font-size:14px">Last opp GeoJSON<input type="file" id="geofil" accept=".geojson,.json"></label>
+      <button id="eksempel">Eksempelområde</button>
+    </div>
+    <div id="status" class="hint"></div>
+  </section>
+  <div id="results"></div>
+</aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl=u=>/^https:\/\//.test(u||'')?u:'#';
+const fmt=n=>Math.round(n).toLocaleString('nb-NO');
+
+/* ---------- Kodeverk ---------- */
+const RL={CR:{n:'Kritisk truet',c:'var(--cr)',v:4},EN:{n:'Sterkt truet',c:'var(--en)',v:4},VU:{n:'Sårbar',c:'var(--vu)',v:3},NT:{n:'Nær truet',c:'var(--nt)',v:2},DD:{n:'Datamangel',c:'var(--dd)',v:2},
+  SE:{n:'Fremmedart – svært høy risiko',c:'var(--se)',v:0},HI:{n:'Fremmedart – høy risiko',c:'var(--se)',v:0},PH:{n:'Fremmedart – potensielt høy risiko',c:'var(--se)',v:0}};
+const VERDI=['Ingen','Noe verdi','Middels verdi','Stor verdi','Svært stor verdi'];
+const PAV=['Ubetydelig endring','Noe forringet','Forringet','Sterkt forringet','Ødelagt'];
+/* Forenklet konsekvensmatrise etter M-1941 (verdi 1–4 × påvirkning 0–4) */
+const KM={4:[0,-2,-3,-4,-4],3:[0,-1,-2,-3,-4],2:[0,-1,-1,-2,-3],1:[0,0,-1,-1,-1],0:[0,0,0,0,0]};
+const KL={'-4':'4 minus – svært alvorlig miljøskade','-3':'3 minus – alvorlig miljøskade','-2':'2 minus – betydelig miljøskade','-1':'1 minus – noe miljøskade','0':'0 – ubetydelig'};
+const KC={'-4':'var(--k4)','-3':'var(--k3)','-2':'var(--k2)','-1':'var(--k1)','0':'var(--k0)'};
+const kons=(v,p)=>KM[v][Math.max(0,Math.min(4,p))];
+const MOBILE=new Set(['Fugler','Pattedyr','Flaggermus','Fisk']);
+
+function gruppe(o){
+  const k=o.kingdom,c=(o.klass||'').toLowerCase(),or=(o.order||'').toLowerCase(),p=(o.phylum||'').toLowerCase();
+  if(k==='Animalia'){
+    if(c==='aves')return'Fugler';
+    if(c==='mammalia')return or==='chiroptera'?'Flaggermus':'Pattedyr';
+    if(c==='amphibia')return'Amfibier';
+    if(c==='reptilia'||c==='squamata')return'Krypdyr';
+    if(['actinopterygii','petromyzonti','elasmobranchii'].includes(c))return'Fisk';
+    if(c==='insecta'){if(or==='lepidoptera')return'Sommerfugler';if(or==='coleoptera')return'Biller';if(or==='hymenoptera')return'Bier og veps';if(or==='odonata')return'Øyenstikkere';return'Insekter';}
+    if(c==='gastropoda'||c==='bivalvia')return'Bløtdyr';
+    if(c==='arachnida')return'Edderkoppdyr';
+    return'Andre dyr';}
+  if(k==='Plantae'){if(p==='bryophyta'||p==='marchantiophyta'||p==='anthocerotophyta')return'Moser';if(p==='tracheophyta')return'Karplanter';return'Alger';}
+  if(k==='Fungi'){if(['lecanoromycetes','arthoniomycetes','lichinomycetes','candelariomycetes','coniocybomycetes'].includes(c))return'Lav';return'Sopp';}
+  return'Andre';
+}
+
+/* Tiltak per artsgruppe etter tiltakshierarkiet (unngå, avbøte, restaurere, kompensere) */
+const TILTAK={
+  Fugler:{u:'Flytt eller krymp utbyggingen så hekke-, beite- og rasteområder holdes utenfor.',a:'Anleggsarbeid utenom hekketida (ca. 1. april–31. juli), bevar kantskog og store trær, fuglevennlig glass, styrt og nedskjermet belysning.',r:'Reetabler kantvegetasjon, våtmark eller gammelskogsstruktur i anleggsområdet.',k:'Sikre og skjøtt tilsvarende leveområde i nærheten (f.eks. frivillig vern eller avtale med grunneier).'},
+  Flaggermus:{u:'Behold trær med hulrom, gamle bygninger og ledelinjer (alléer, kantskog).',a:'Mørke korridorer uten belysning, lysstyring med bevegelsessensor og varm lysfarge, felling utenom yngle- og dvaleperiode.',r:'Plant nye ledelinjer av trær og busker.',k:'Flaggermuskasser og sikring av alternative kolonisteder.'},
+  Pattedyr:{u:'Hold vilttrekk og korridorer åpne, unngå å stenge forbindelser mellom leveområder.',a:'Faunapassasjer, viltgjerder i kombinasjon med kryssingspunkter, anleggsarbeid utenom yngletid.',r:'Revegeter skjæringer og fyllinger med stedegen vegetasjon.',k:'Sikre alternative korridorer og leveområder.'},
+  Amfibier:{u:'Unngå inngrep i dammer, tjern og fuktsig og i landområdene rundt (ofte 100–200 m).',a:'Amfibiepassasjer under vei, midlertidige sperregjerder i anleggsfasen, arbeid utenom vårvandringa.',r:'Anlegg eller restaurer dammer uten fisk, gjenåpne grøfter som våtmark.',k:'Nye dammer i nærheten. Flytting av individer krever tillatelse og faglig oppfølging.'},
+  Krypdyr:{u:'Bevar solvendte steinrøyser, bergknauser og kantsoner.',a:'Anleggsarbeid utenom dvaleperioden, gjerde av leveområder i anleggstida.',r:'Bygg nye steinrøyser og solvendte kanter.',k:'Sikre tilsvarende habitat i nærområdet.'},
+  Fisk:{u:'Ikke lukk eller legg om bekker og elver, behold naturlige kantsoner (minst 10–20 m).',a:'Sedimentkontroll (siltgardiner, sedimenteringsbasseng), fiskepassasje i kulverter, arbeid utenom gyteperioden.',r:'Gjenåpne lukkede bekker, legge ut gytegrus, plante kantvegetasjon.',k:'Restaurere vassdrag andre steder i samme nedbørfelt.'},
+  Insekter:{u:'Bevar blomsterrike enger, solåpne kanter, sandblotter og død ved.',a:'Bruk stedegne frøblandinger, sein slått uten gjødsling, lagre og legg tilbake toppmasser lokalt.',r:'Etabler blomsterenger og insektvennlige grøntområder, legg ut død ved.',k:'Skjøtsel av tilsvarende naturtyper i nærheten.'},
+  Karplanter:{u:'Juster arealet så voksestedet holdes utenfor, merk og gjerd inn forekomsten i anleggsfasen.',a:'Ta vare på og legg tilbake stedegne toppmasser (frøbank), unngå endret hydrologi og gjødsling.',r:'Flytting av planter eller jord kan forsøkes, men lykkes ofte dårlig og må følges opp over flere år.',k:'Skjøtsel eller sikring av andre voksesteder for arten.'},
+  Lav:{u:'Behold gamle trær og skogbestand der arten vokser, med skjermende skog rundt for mikroklima.',a:'Ikke drenér, unngå kanteffekter og hogst nær forekomsten.',r:'Etterlat gamle trær og død ved, la skog utvikle seg fritt.',k:'Frivillig vern av tilsvarende eldre skog.'},
+  Sopp:{u:'Behold vertstrær, død ved og jordsmonn der arten vokser.',a:'Unngå graving, kjøring og drenering nær forekomsten.',r:'Legg igjen død ved, behold rotsystemer.',k:'Sikre tilsvarende skog eller beitemark andre steder.'},
+  Moser:{u:'Behold fuktige mikrohabitater, bekkekløfter og gamle trær.',a:'Unngå endret hydrologi og åpning av kronetak.',r:'Tilbakeføre naturlig vannføring.',k:'Sikre tilsvarende habitat.'},
+  'Bløtdyr':{u:'Unngå inngrep i vassdrag med muslinger eller i kalkrike leveområder for snegl.',a:'Streng sedimentkontroll og vannkvalitetsovervåking i anleggsfasen.',r:'Restaurer bunnsubstrat og kantsoner.',k:'Tiltak for vannkvalitet ellers i vassdraget.'},
+  _:{u:'Juster plassering eller avgrensning slik at artens leveområde ikke berøres.',a:'Tilpass anleggstid, begrens anleggsbelte, ta vare på stedegne masser.',r:'Istandsett leveområdet etter anleggsfasen med stedegen vegetasjon.',k:'Sikre eller restaurer tilsvarende leveområde i nærheten.'}
+};
+['Sommerfugler','Biller','Bier og veps','Øyenstikkere','Edderkoppdyr'].forEach(g=>TILTAK[g]=TILTAK.Insekter);
+const tiltakFor=g=>TILTAK[g]||TILTAK._;
+
+/* ---------- Kart ---------- */
+const map=L.map('map',{zoomControl:true}).setView([59.94,10.70],12);
+const topo=L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',{maxZoom:19,attribution:'© Kartverket'}).addTo(map);
+const graa=L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png',{maxZoom:19,attribution:'© Kartverket'});
+const foto=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri World Imagery'});
+const wmsNat=L.tileLayer.wms('https://kart.miljodirektoratet.no/arcgis/services/naturtyper_nin/MapServer/WMSServer',{layers:'naturtyper_nin_alle',format:'image/png',transparent:true,opacity:.6,attribution:'Miljødirektoratet'});
+const wmsVern=L.tileLayer.wms('https://kart.miljodirektoratet.no/arcgis/services/vern/MapServer/WMSServer',{layers:'naturvern_omrade',format:'image/png',transparent:true,opacity:.5,attribution:'Miljødirektoratet'});
+const drawn=new L.FeatureGroup().addTo(map), bufLayer=L.layerGroup().addTo(map), obsLayer=L.layerGroup().addTo(map), natLayer=L.layerGroup().addTo(map);
+L.control.layers({'Topografisk':topo,'Gråtone':graa,'Flyfoto':foto},{'Funn':obsLayer,'Naturtyper (hentet)':natLayer,'Naturtyper NiN (WMS)':wmsNat,'Verneområder (WMS)':wmsVern,'Influenssone':bufLayer}).addTo(map);
+map.addControl(new L.Control.Draw({edit:{featureGroup:drawn},draw:{polyline:false,circle:false,circlemarker:false,marker:false,polygon:{allowIntersection:false,shapeOptions:{color:'#17603d',weight:3}},rectangle:{shapeOptions:{color:'#17603d',weight:3}}}}));
+L.drawLocal.draw.toolbar.buttons.polygon='Tegn tiltaksområde';L.drawLocal.draw.toolbar.buttons.rectangle='Tegn rektangel';
+
+let AREA=null, STUDY=null, DATA=null, OVR={}, TAB='arter', FILT={g:'',s:'',z:''};
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+function setArea(geo,fit){
+  drawn.clearLayers();
+  const lyr=L.geoJSON(geo,{style:{color:'#17603d',weight:3,fillOpacity:.08}});
+  lyr.eachLayer(l=>drawn.addLayer(l));
+  updateArea();
+  if(fit)map.fitBounds(drawn.getBounds(),{padding:[30,30]});
+}
+function updateArea(){
+  const fc=drawn.toGeoJSON();
+  const polys=fc.features.filter(f=>/Polygon/.test(f.geometry.type));
+  if(!polys.length){AREA=null;$('#hent').disabled=true;$('#areaInfo').textContent='Tegn et polygon eller rektangel med verktøyene oppe til venstre i kartet, eller last opp GeoJSON.';bufLayer.clearLayers();return;}
+  AREA=polys.length===1?polys[0]:polys.reduce((a,b)=>turf.union(a,b));
+  const daa=turf.area(AREA)/1000;
+  $('#areaInfo').innerHTML='Tiltaksområde: <b>'+fmt(daa)+' daa</b> ('+(daa/1000).toLocaleString('nb-NO',{maximumFractionDigits:2})+' km²).';
+  $('#hent').disabled=false;
+  drawBuffer();
+  store.set('ak_area',AREA);
+}
+function drawBuffer(){
+  bufLayer.clearLayers();
+  if(!AREA)return;
+  const b=+$('#buffer').value||0;
+  STUDY=b>0?turf.buffer(AREA,b,{units:'meters'}):AREA;
+  L.geoJSON(STUDY,{style:{color:'#17603d',weight:1.5,dashArray:'6 5',fill:false},interactive:false}).addTo(bufLayer);
+}
+map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();drawn.addLayer(e.layer);updateArea();});
+map.on(L.Draw.Event.EDITED,updateArea);map.on(L.Draw.Event.DELETED,updateArea);
+$('#buffer').addEventListener('change',drawBuffer);
+$('#geofil').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{const g=JSON.parse(await f.text());setArea(g,true);}catch(err){status('Kunne ikke lese GeoJSON: '+err.message,true);}
+});
+$('#eksempel').addEventListener('click',()=>setArea({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[10.606,59.919],[10.616,59.919],[10.617,59.925],[10.607,59.926],[10.604,59.922],[10.606,59.919]]]}},true));
+$('#sok').addEventListener('submit',async e=>{
+  e.preventDefault();const q=$('#sokq').value.trim();if(!q)return;
+  try{const j=await getJSON('https://ws.geonorge.no/stedsnavn/v1/navn?sok='+encodeURIComponent(q)+'&fuzzy=true&treffPerSide=1&utkoordsys=4326');
+    const n=j.navn&&j.navn[0];if(!n){status('Fant ikke «'+q+'».',true);return;}
+    map.setView([n.representasjonspunkt.nord,n.representasjonspunkt['øst']],14);
+    status((n['skrivemåte']||q)+', '+(n.kommuner?.[0]?.kommunenavn||''));
+  }catch(err){status('Stedssøk feilet: '+err.message,true)}
+});
+
+/* ---------- Datahenting ---------- */
+function status(t,err){$('#status').innerHTML=err?'<span class="err">'+esc(t)+'</span>':esc(t);}
+async function getJSON(u,ms=45000){
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),ms);
+  try{const r=await fetch(u,{signal:ac.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
+  finally{clearTimeout(to)}
+}
+function toWKT(f){
+  let g=turf.simplify(f,{tolerance:0.00003,highQuality:true});
+  g=turf.rewind(g);
+  const geom=g.geometry;
+  const ring=r=>'('+r.map(c=>c[0].toFixed(6)+' '+c[1].toFixed(6)).join(',')+')';
+  if(geom.type==='Polygon')return'POLYGON('+geom.coordinates.map(ring).join(',')+')';
+  return'MULTIPOLYGON('+geom.coordinates.map(p=>'('+p.map(ring).join(',')+')').join(',')+')';
+}
+async function artskart(wkt,statuses,fra){
+  const base='https://artskart.artsdatabanken.no/publicapi/api/observations/list?crs=EPSG:4326&pageSize=1000&filter.wktPolygon='+encodeURIComponent(wkt)+statuses.map(s=>'&filter.status='+s).join('')+'&filter.fromDate='+fra+'-01-01';
+  const first=await getJSON(base+'&pageIndex=0');
+  let obs=first.Observations||[];
+  const pages=Math.min(first.TotalPages||1,15);
+  const rest=await Promise.all(Array.from({length:pages-1},(_,i)=>getJSON(base+'&pageIndex='+(i+1)).then(j=>j.Observations||[]).catch(()=>[])));
+  rest.forEach(r=>obs=obs.concat(r));
+  return{obs,total:first.TotalCount||obs.length,capped:(first.TotalPages||1)>15};
+}
+async function gbifRichness(wkt,fra){
+  const u='https://api.gbif.org/v1/occurrence/search?country=NO&hasCoordinate=true&limit=0&facet=speciesKey&facetLimit=5000&year='+fra+',2100&geometry='+encodeURIComponent(wkt);
+  const j=await getJSON(u);return{occ:j.count,species:(j.facets?.[0]?.counts||[]).length};
+}
+const esriGeom=f=>{const g=turf.rewind(turf.simplify(f,{tolerance:0.00003}),{reverse:true}).geometry;const rings=g.type==='Polygon'?g.coordinates:g.coordinates.flat();return JSON.stringify({rings,spatialReference:{wkid:4326}})};
+const NAT_LAYERS=[[2,'Svært høy',4],[3,'Høy',3],[4,'Moderat',2],[5,'Lav',1],[6,'Svært lav',1],[7,'Ikke kvalitetsvurdert',2]];
+async function naturtyper(f){
+  const g=encodeURIComponent(esriGeom(f));
+  const res=await Promise.all(NAT_LAYERS.map(([id,kv,v])=>getJSON('https://kart.miljodirektoratet.no/arcgis/rest/services/naturtyper_nin/MapServer/'+id+'/query?f=geojson&outFields=Naturtype,Naturtypekode,Faktaark,Områdenavn,Kartleggingsår,UK_Truet,UK_NærTruet,UK_SentralØkosystemFunksjon,Hovedøkosystem,NiNID&returnGeometry=true&outSR=4326&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&geometry='+g)
+    .then(j=>(j.features||[]).map(x=>({...x,kv,v}))).catch(()=>[])));
+  return res.flat();
+}
+async function vern(f){
+  const meta=await getJSON('https://kart.miljodirektoratet.no/arcgis/rest/services/vern/MapServer?f=json');
+  const l=(meta.layers||[]).find(x=>x.name==='naturvern_omrade');if(!l)return[];
+  const j=await getJSON('https://kart.miljodirektoratet.no/arcgis/rest/services/vern/MapServer/'+l.id+'/query?f=geojson&outFields=*&returnGeometry=true&outSR=4326&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&geometry='+encodeURIComponent(esriGeom(f)));
+  return j.features||[];
+}
+
+$('#hent').addEventListener('click',run);
+async function run(){
+  if(!AREA)return;
+  drawBuffer();
+  const fra=+$('#fraAar').value||1990, wkt=toWKT(STUDY);
+  $('#hent').disabled=true;$('#results').innerHTML='<div class="card"><div class="loader"></div><p class="hint">Henter funn fra Artskart, naturtyper og verneområder fra Miljødirektoratet og artsrikdom fra GBIF …</p></div>';
+  status('');
+  const [rl,fa,gb,nt,vo]=await Promise.allSettled([artskart(wkt,['CR','EN','VU','NT','DD'],fra),artskart(wkt,['SE','HI','PH'],fra),gbifRichness(wkt,fra),naturtyper(STUDY),vern(STUDY)]);
+  $('#hent').disabled=false;
+  const errs=[];
+  if(rl.status==='rejected')errs.push('Artskart (rødlistearter): '+rl.reason.message);
+  if(fa.status==='rejected')errs.push('Artskart (fremmedarter): '+fa.reason.message);
+  if(gb.status==='rejected')errs.push('GBIF: '+gb.reason.message);
+  if(nt.status==='rejected')errs.push('Naturtyper: '+nt.reason.message);
+  if(vo.status==='rejected')errs.push('Verneområder: '+vo.reason.message);
+  DATA=analyse(rl.value,fa.value,gb.value,nt.value||[],vo.value||[],errs,fra);
+  OVR=store.get('ak_ovr')||{};
+  drawMap();render();
+}
+
+/* ---------- Analyse ---------- */
+function analyse(rl,fa,gb,nt,vo,errs,fra){
+  const edge=turf.polygonToLine(AREA);
+  const lines=edge.type==='FeatureCollection'?edge.features:[edge];
+  const buf=+$('#buffer').value||0, type=$('#tiltak').value;
+  const dist=pt=>turf.booleanPointInPolygon(pt,AREA)?0:Math.min(...lines.map(l=>turf.pointToLineDistance(pt,l,{units:'meters'})));
+  const agg=(obs,alien)=>{
+    const m={};
+    for(const o of obs){
+      if(o.East==null||o.North==null)continue;
+      const id=o.ScientificNameId||o.TaxonId||o.ScientificName;
+      const pt=turf.point([o.East,o.North]), d=dist(pt), prec=+o.Precision||0;
+      const yr=+(String(o.CollectedDate||'').split('.')[2]||0);
+      const s=m[id]||(m[id]={id,navn:o.Name||o.ScientificName,sci:o.ScientificName,status:o.Status,gruppe:gruppe(o),alien,n:0,inne:0,minD:1e9,sist:0,usikker:0,hekk:0,hekkInne:0,url:(o.PropertyUrls||[])[0]?.Url,pts:[]});
+      s.n++;if(d===0)s.inne++;if(d<s.minD)s.minD=d;if(yr>s.sist)s.sist=yr;if(d>0&&prec>d)s.usikker++;
+      if(/reproductive|brood|nest|reir|hekk|pull|egg|territor/i.test((o.Behavior||[]).join(' ')+' '+(o.Notes||''))){s.hekk++;if(d===0)s.hekkInne++;}
+      s.pts.push({lat:o.North,lng:o.East,d,prec,dato:o.CollectedDate,lok:o.Locality,obs:o.ObsUrl,kilde:o.Institution});
+    }
+    return Object.values(m);
+  };
+  const arter=agg(rl?.obs||[],false), fremmed=agg(fa?.obs||[],true);
+  for(const s of arter){
+    s.verdi=RL[s.status]?.v||1;
+    const mob=MOBILE.has(s.gruppe);
+    let p= s.minD===0 ? (mob?3:4) : s.minD<=50 ? 2 : (mob?2:1);
+    /* Fugl: uten hekkeindikasjon regnes funn som næringssøk eller overflyging */
+    if(s.gruppe==='Fugler')p= s.minD===0 ? (s.hekkInne?3:2) : (s.hekk&&s.minD<=200?2:1);
+    if((type==='vind'||type==='kraftlinje')&&(s.gruppe==='Fugler'||s.gruppe==='Flaggermus'))p=Math.min(4,p+1);
+    if(s.minD>0&&s.usikker&&p<2)p=2;
+    s.pav0=p;
+  }
+  const natur=nt.map(f=>{
+    let ov=0;try{const i=turf.intersect(AREA,f);ov=i?turf.area(i):0}catch(e){}
+    const a=turf.area(f), frac=a?ov/a:0;
+    const p=frac>.5?4:frac>0?3:1;
+    return{...f.properties,kv:f.kv,verdi:f.v,areal:a,ov,frac,pav:p,k:kons(f.v,p),geo:f};
+  }).sort((a,b)=>a.k-b.k||b.verdi-a.verdi);
+  const vernInne=vo.map(f=>{let ov=0;try{const i=turf.intersect(AREA,f);ov=i?turf.area(i):0}catch(e){}const p=f.properties||{};const navn=p.offisieltNavn||p.navn||p.NAVN||Object.entries(p).find(([k,v])=>/navn/i.test(k)&&typeof v==='string')?.[1]||'Verneområde';const vf=p.verneformAggregert||p.verneform||p.VERNEFORM||Object.entries(p).find(([k])=>/verneform/i.test(k))?.[1]||'';return{navn,vf,ov,geo:f,url:p.faktaark,forskrift:p.verneforskrift}});
+  return{arter,fremmed,gb,natur,vern:vernInne,errs,fra,buf,type,rlTot:rl?.total||0,capped:rl?.capped||fa?.capped,daa:turf.area(AREA)/1000};
+}
+const ovr=id=>OVR[id]||(OVR[id]={t:{}});
+function resid(s){
+  const o=ovr(s.id);let p=o.pav??s.pav0;const t=o.t;
+  if(t.u)p=Math.min(p,1);
+  if(t.a)p=Math.max(0,p-1);
+  if(t.r&&p>=2)p--;
+  return p;
+}
+
+/* ---------- Kart av resultat ---------- */
+function drawMap(){
+  obsLayer.clearLayers();natLayer.clearLayers();
+  const ncol={4:'#8b0016',3:'#d63a1e',2:'#f08c00',1:'#9aa5a0'};
+  DATA.natur.forEach(n=>L.geoJSON(n.geo,{style:{color:ncol[n.verdi]||'#888',weight:1,fillOpacity:.25}}).bindPopup('<b>'+esc(n.Naturtype)+'</b><br>Lokalitetskvalitet: '+esc(n.kv)+'<br><a target="_blank" href="'+esc(safeUrl(n.Faktaark))+'">Faktaark</a>').addTo(natLayer));
+  DATA.vern.forEach(v=>L.geoJSON(v.geo,{style:{color:'#1d4ed8',weight:2,fillOpacity:.1,dashArray:'2 4'}}).bindPopup('<b>'+esc(v.navn)+'</b><br>'+esc(v.vf)).addTo(natLayer));
+  const col=s=>getComputedStyle(document.documentElement).getPropertyValue('--'+(RL[s]?.v===0?'se':s.toLowerCase())).trim()||'#888';
+  [...DATA.fremmed,...DATA.arter].forEach(s=>s.pts.forEach(p=>L.circleMarker([p.lat,p.lng],{radius:s.alien?4:6,color:'#fff',weight:1,fillColor:col(s.status),fillOpacity:.9})
+    .bindPopup('<b>'+esc(s.navn)+'</b> <i>'+esc(s.sci)+'</i><br>'+esc(RL[s.status]?.n||s.status)+'<br>'+esc(p.dato)+' · '+esc(p.lok)+'<br>Nøyaktighet ±'+esc(p.prec)+' m · '+(p.d===0?'innenfor':fmt(p.d)+' m fra området')+'<br>'+esc(p.kilde)+'<br><a target="_blank" href="'+esc(safeUrl(p.obs))+'">Se i Artskart</a>').addTo(obsLayer)));
+  if(STUDY)map.fitBounds(L.geoJSON(STUDY).getBounds(),{padding:[20,20]});
+}
+
+/* ---------- Visning ---------- */
+const badge=s=>'<span class="badge" style="background:'+(RL[s]?.c||'var(--dd)')+'">'+esc(s)+'</span>';
+const kbadge=k=>'<span class="badge" style="background:'+KC[k]+'">'+(k<0?(-k)+' minus':'0')+'</span>';
+function summary(){
+  const ks=DATA.arter.map(s=>kons(s.verdi,resid(s))).concat(DATA.natur.map(n=>n.k));
+  const ks0=DATA.arter.map(s=>kons(s.verdi,ovr(s.id).pav??s.pav0)).concat(DATA.natur.map(n=>n.k));
+  const c=k=>ks.filter(x=>x===k).length, c0=k=>ks0.filter(x=>x===k).length;
+  const vernTreff=DATA.vern.some(v=>v.ov>0);
+  let v,col,txt;
+  if(vernTreff||c(-4)){v='Ikke bærekraftig i nåværende form';col='var(--k4)';txt=(vernTreff?'Tiltaksområdet overlapper et verneområde. ':'')+(c(-4)?c(-4)+' forekomst(er) får fortsatt svært alvorlig miljøskade etter tiltak. ':'')+'Vurder alternativ lokalisering eller vesentlig endret avgrensning (unngå-trinnet).';}
+  else if(c(-3)){v='Tvilsom – krever omfattende tiltak';col='var(--k3)';txt=c(-3)+' forekomst(er) får alvorlig miljøskade. Prioriter å unngå de viktigste forekomstene, og planlegg avbøtende tiltak og kompensasjon.';}
+  else if(c(-2)){v='Akseptabel med tiltak';col='var(--k2)';txt='Betydelig miljøskade for '+c(-2)+' forekomst(er). Avbøtende tiltak og oppfølging bør innarbeides i planbestemmelsene.';}
+  else if(DATA.arter.length||DATA.natur.length){v='Lav konflikt';col='var(--k1)';txt='Registrerte forekomster får begrenset konsekvens med valgte forutsetninger.';}
+  else{v='Ingen registrerte konflikter – men kunnskapen kan mangle';col='var(--k0)';txt='Fravær av funn betyr ikke fravær av arter. Vurder feltkartlegging før vedtak (naturmangfoldloven § 8 og § 9).';}
+  const tot=ks.length||1;
+  const seg=[-4,-3,-2,-1,0].map(k=>'<i style="width:'+(c(k)/tot*100)+'%;background:'+KC[k]+'" title="'+esc(KL[k])+': '+c(k)+'"></i>').join('');
+  const kunnskap=(DATA.gb?.occ??0)<50?'<p class="warn">Svakt kunnskapsgrunnlag: bare '+fmt(DATA.gb?.occ||0)+' registrerte funn av alle arter i GBIF for området. Konklusjonen er usikker, og feltkartlegging anbefales.</p>':'';
+  return'<section class="card verdict" style="border-left-color:'+col+'"><h2>'+esc(v)+'</h2><p style="margin:0">'+esc(txt)+'</p>'
+   +'<div class="bar">'+seg+'</div><div class="legend">'+[-4,-3,-2,-1,0].map(k=>'<span><span class="dot" style="background:'+KC[k]+'"></span>'+(k<0?(-k)+' minus':'0')+': '+c(k)+(c0(k)!==c(k)?' (før tiltak '+c0(k)+')':'')+'</span>').join('')+'</div>'
+   +'<div class="stats"><div class="stat"><b>'+fmt(DATA.daa)+'</b><span>daa nedbygd</span></div><div class="stat"><b>'+DATA.arter.length+'</b><span>rødlistearter</span></div><div class="stat"><b>'+DATA.fremmed.length+'</b><span>fremmedarter</span></div><div class="stat"><b>'+DATA.natur.length+'</b><span>naturtyper</span></div><div class="stat"><b>'+(DATA.gb?fmt(DATA.gb.species):'–')+'</b><span>arter totalt (GBIF)</span></div></div>'
+   +kunnskap
+   +(DATA.errs.length?'<p class="err">Noen kilder svarte ikke: '+DATA.errs.map(esc).join('; ')+'</p>':'')
+   +(DATA.capped?'<p class="hint">Mange funn i området: bare de 15 000 første funnene per kategori er tatt med.</p>':'')
+   +'</section>';
+}
+function spRow(s){
+  const o=ovr(s.id), p0=o.pav??s.pav0, pr=resid(s), k0=kons(s.verdi,p0), k=kons(s.verdi,pr), t=tiltakFor(s.gruppe);
+  const sone=s.inne?s.inne+' av '+s.n+' funn innenfor':'Nærmeste funn '+fmt(s.minD)+' m unna';
+  const chip=(key,lbl)=>'<label class="chip'+(o.t[key]?' on':'')+'"><input type="checkbox" data-id="'+esc(s.id)+'" data-t="'+key+'"'+(o.t[key]?' checked':'')+'>'+lbl+'</label>';
+  return'<div class="sp"><div class="top">'+badge(s.status)+'<span class="nm">'+esc(s.navn)+'</span><span class="sci">'+esc(s.sci)+'</span></div>'
+   +'<div class="meta">'+esc(s.gruppe)+' · '+esc(sone)+' · sist sett '+(s.sist||'ukjent')+(s.sist&&s.sist<2000?' (gammelt funn)':'')+(s.gruppe==='Fugler'?(s.hekk?' · <b>hekkeindikasjon i '+s.hekk+' funn</b>':' · ingen hekkeindikasjon'):'')+(s.usikker?' · '+s.usikker+' funn kan ligge innenfor pga. unøyaktig posisjon':'')+(s.url?' · <a target="_blank" href="'+esc(safeUrl(s.url))+'">rødlistevurdering</a>':'')+'</div>'
+   +'<div class="eval"><span>Verdi</span><span>'+esc(VERDI[s.verdi])+'</span>'
+   +'<span>Påvirkning</span><select data-pav="'+esc(s.id)+'">'+PAV.map((n,i)=>'<option value="'+i+'"'+(i===p0?' selected':'')+'>'+n+(i===s.pav0?' (forslag)':'')+'</option>').join('')+'</select>'
+   +'<span>Konsekvens</span><span>'+kbadge(k0)+(k!==k0?' → etter tiltak '+kbadge(k):'')+'</span>'
+   +'<span>Tiltak</span><span class="chips">'+chip('u','Unngå')+chip('a','Avbøte')+chip('r','Restaurere')+chip('k','Kompensere')+'</span></div>'
+   +'<details><summary>Foreslåtte tiltak for '+esc(s.gruppe.toLowerCase())+'</summary><ul><li><b>Unngå:</b> '+esc(t.u)+'</li><li><b>Avbøte:</b> '+esc(t.a)+'</li><li><b>Restaurere:</b> '+esc(t.r)+'</li><li><b>Kompensere:</b> '+esc(t.k)+'</li></ul></details></div>';
+}
+function tabArter(){
+  let a=DATA.arter.slice();
+  if(FILT.g)a=a.filter(s=>s.gruppe===FILT.g);
+  if(FILT.s)a=a.filter(s=>s.status===FILT.s);
+  if(FILT.z==='inne')a=a.filter(s=>s.inne);if(FILT.z==='ute')a=a.filter(s=>!s.inne);
+  a.sort((x,y)=>kons(x.verdi,resid(x))-kons(y.verdi,resid(y))||y.verdi-x.verdi||x.minD-y.minD);
+  const grupper=[...new Set(DATA.arter.map(s=>s.gruppe))].sort();
+  const opt=(v,l,cur)=>'<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(l)+'</option>';
+  return'<div class="filters"><select id="fg">'+opt('','Alle grupper',FILT.g)+grupper.map(g=>opt(g,g,FILT.g)).join('')+'</select>'
+   +'<select id="fs">'+opt('','Alle kategorier',FILT.s)+['CR','EN','VU','NT','DD'].map(s=>opt(s,s+' – '+RL[s].n,FILT.s)).join('')+'</select>'
+   +'<select id="fz">'+opt('','Inne og i sonen',FILT.z)+opt('inne','Bare innenfor',FILT.z)+opt('ute','Bare i influenssonen',FILT.z)+'</select><span>'+a.length+' arter</span></div>'
+   +(a.length?a.map(spRow).join(''):'<p class="empty">Ingen rødlistede arter registrert i området og influenssonen siden '+DATA.fra+'. Det kan skyldes manglende kartlegging.</p>');
+}
+function tabNatur(){
+  const vt=DATA.vern.length?'<h3 style="font-size:15px">Verneområder</h3>'+DATA.vern.map(v=>'<div class="sp"><span class="nm">'+esc(v.navn)+'</span> <span class="meta">'+esc(v.vf)+' · '+(v.ov>0?'<b style="color:var(--cr)">'+fmt(v.ov/1000)+' daa overlapper tiltaksområdet</b>':'i influenssonen')+(v.url?' · <a target="_blank" href="'+esc(safeUrl(v.url))+'">faktaark</a>':'')+(v.forskrift?' · <a target="_blank" href="'+esc(safeUrl(v.forskrift))+'">verneforskrift</a>':'')+'</span></div>').join(''):'';
+  const nt=DATA.natur.length?DATA.natur.map(n=>'<div class="sp"><div class="top">'+kbadge(n.k)+'<span class="nm">'+esc(n.Naturtype)+'</span><span class="sci">'+esc(n['Områdenavn']||'')+'</span></div><div class="meta">Lokalitetskvalitet: '+esc(n.kv)+' · '+(n.UK_Truet?'truet naturtype · ':'')+(n.UK_SentralØkosystemFunksjon?'sentral økosystemfunksjon · ':'')+'areal '+fmt(n.areal/1000)+' daa · '+(n.ov?fmt(n.ov/1000)+' daa ('+Math.round(n.frac*100)+' %) innenfor tiltaksområdet':'bare i influenssonen')+' · kartlagt '+esc(n['Kartleggingsår']||'?')+' · <a target="_blank" href="'+esc(safeUrl(n.Faktaark))+'">faktaark</a></div><div class="meta">Verdi: '+VERDI[n.verdi]+' · påvirkning: '+PAV[n.pav]+'</div></div>').join(''):'<p class="empty">Ingen naturtyper kartlagt etter NiN (Miljødirektoratets instruks) i området. Mange områder er ikke kartlagt; se dekningskartet i Naturbase.</p>';
+  return vt+'<h3 style="font-size:15px">Naturtyper (NiN)</h3>'+nt;
+}
+function tabFremmed(){
+  if(!DATA.fremmed.length)return'<p class="empty">Ingen registrerte fremmedarter med høy eller svært høy risiko.</p>';
+  return'<p class="hint">Fremmedarter kan spres med masser og maskiner. Bruk dette som grunnlag for en tiltaksplan mot fremmedarter.</p><ul class="hint"><li>Kartlegg og fjern forekomster før anleggsstart.</li><li>Ikke flytt jord fra forekomstene; lever til godkjent mottak.</li><li>Rengjør maskiner før de forlater området.</li><li>Bruk stedegne masser og frøblandinger ved revegetering.</li></ul>'
+   +DATA.fremmed.sort((a,b)=>b.inne-a.inne||a.minD-b.minD).map(s=>'<div class="sp"><div class="top">'+badge(s.status)+'<span class="nm">'+esc(s.navn)+'</span><span class="sci">'+esc(s.sci)+'</span></div><div class="meta">'+esc(RL[s.status]?.n)+' · '+(s.inne?s.inne+' funn innenfor':'nærmeste '+fmt(s.minD)+' m unna')+(s.url?' · <a target="_blank" href="'+esc(safeUrl(s.url))+'">fremmedartsvurdering</a>':'')+'</div></div>').join('');
+}
+function tabMetode(){
+  return'<ol class="hier"><li><b>1. Unngå</b>Velg lokalisering og avgrensning som holder viktige forekomster utenfor. Dette er det mest effektive tiltaket og skal vurderes først.</li><li><b>2. Avbøte</b>Begrens skaden der den ikke kan unngås: anleggstid, anleggsbelte, lys, passasjer, sedimentkontroll.</li><li><b>3. Restaurere</b>Istandsett påvirkede arealer etter anleggsfasen med stedegne masser og vegetasjon.</li><li><b>4. Kompensere</b>Erstatt gjenværende tap med sikring eller restaurering av tilsvarende natur andre steder. Endrer ikke konsekvensgraden i M-1941, men inngår i samlet vurdering.</li></ol>'
+   +'<h3 style="font-size:15px">Slik regnes det ut</h3><ul class="hint"><li><b>Verdi</b> fra Norsk rødliste 2021: CR og EN = svært stor, VU = stor, NT og DD = middels. Naturtyper: lokalitetskvalitet etter Miljødirektoratets instruks.</li><li><b>Fugl</b>: funn uten hekkeindikasjon (atferd eller merknad om reir, egg, unger, territorium) regnes som næringssøk eller overflyging og gir lavere påvirkning.</li><li><b>Påvirkning</b> (forslag): funn innenfor = ødelagt (stedbundne arter) eller sterkt forringet (mobile arter); inntil 50 m = forringet; ellers i influenssonen = noe forringet. Vindkraft og kraftlinjer gir ett trinn ekstra for fugl og flaggermus. Funn med usikker posisjon som kan ligge innenfor regnes minst som forringet.</li><li><b>Konsekvens</b> = verdi × påvirkning i en forenklet versjon av konsekvensvifta i M-1941. Unngå setter påvirkningen til høyst «noe forringet», avbøte og restaurere senker den ett trinn hver.</li><li><b>Samlet</b>: verneområde eller 4 minus etter tiltak gir «ikke bærekraftig»; 3 minus gir «tvilsom».</li></ul>'
+   +'<h3 style="font-size:15px">Forbehold</h3><p class="hint">Dette er en automatisk screening og et førsteutkast, ikke en konsekvensutredning. Manglende funn betyr ikke at arter mangler. Følsomme arter (f.eks. rovfugl) er ofte skjult eller grovt oppgitt i Artskart. Vurderingen erstatter ikke faglig skjønn, feltarbeid eller kravene i naturmangfoldloven §§ 8–12 og KU-forskriften. Kilder: Artskart (Artsdatabanken), Norsk rødliste for arter 2021, Fremmedartslista 2023, Naturbase (Miljødirektoratet), GBIF.</p>';
+}
+function render(){
+  if(!DATA)return;
+  const tabs=[['arter','Rødlistearter ('+DATA.arter.length+')'],['natur','Naturtyper og vern ('+(DATA.natur.length+DATA.vern.length)+')'],['fremmed','Fremmedarter ('+DATA.fremmed.length+')'],['metode','Tiltak og metode']];
+  const body={arter:tabArter,natur:tabNatur,fremmed:tabFremmed,metode:tabMetode}[TAB]();
+  $('#results').innerHTML=summary()+'<section class="card"><div class="tabs">'+tabs.map(([k,l])=>'<button data-tab="'+k+'" class="'+(k===TAB?'on':'')+'">'+l+'</button>').join('')+'</div><div>'+body+'</div>'
+   +'<div class="btns"><button id="csv">Last ned CSV</button><button id="print">Skriv ut / PDF</button><button id="nullstill">Nullstill vurderinger</button></div></section>';
+}
+$('#results').addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab]');if(t){TAB=t.dataset.tab;render();return;}
+  if(e.target.id==='print')window.print();
+  if(e.target.id==='nullstill'){OVR={};store.set('ak_ovr',OVR);render();}
+  if(e.target.id==='csv')csv();
+});
+$('#results').addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.pav){ovr(el.dataset.pav).pav=+el.value;}
+  else if(el.dataset.t){ovr(el.dataset.id).t[el.dataset.t]=el.checked;}
+  else if(el.id==='fg')FILT.g=el.value;else if(el.id==='fs')FILT.s=el.value;else if(el.id==='fz')FILT.z=el.value;else return;
+  store.set('ak_ovr',OVR);render();
+});
+function csv(){
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const rows=[['Type','Norsk navn','Vitenskapelig navn','Kategori','Gruppe','Funn','Funn innenfor','Nærmeste (m)','Sist sett','Verdi','Påvirkning','Konsekvens','Tiltak','Konsekvens etter tiltak']];
+  DATA.arter.forEach(s=>{const o=ovr(s.id),p=o.pav??s.pav0;rows.push(['Rødlisteart',s.navn,s.sci,s.status,s.gruppe,s.n,s.inne,Math.round(s.minD),s.sist,VERDI[s.verdi],PAV[p],KL[kons(s.verdi,p)],Object.keys(o.t).filter(k=>o.t[k]).map(k=>({u:'Unngå',a:'Avbøte',r:'Restaurere',k:'Kompensere'})[k]).join(' + '),KL[kons(s.verdi,resid(s))]])});
+  DATA.natur.forEach(n=>rows.push(['Naturtype',n.Naturtype,n.Naturtypekode,n.kv,n['Hovedøkosystem'],'','',Math.round(n.ov),n['Kartleggingsår'],VERDI[n.verdi],PAV[n.pav],KL[n.k],'',KL[n.k]]));
+  DATA.fremmed.forEach(s=>rows.push(['Fremmedart',s.navn,s.sci,s.status,s.gruppe,s.n,s.inne,Math.round(s.minD),s.sist,'','','','','']));
+  const blob=new Blob(['﻿'+rows.map(r=>r.map(q).join(';')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='artskonsekvens.csv';document.body.appendChild(a);a.click();a.remove();
+}
+
+const saved=store.get('ak_area');if(saved){try{setArea(saved,true)}catch(e){}}
+}
+</script>
+</body>
+</html>
